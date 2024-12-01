@@ -12,15 +12,16 @@ import com.test.uala.ui.cities.ParserExceptions
 import com.test.uala.ui.cities.ServerExceptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import java.io.IOException
 
 class MainViewModel : ViewModel() {
 
-    private val _isRefreshing = MutableLiveData(false)
-    val isRefreshing: LiveData<Boolean> = _isRefreshing
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
     private val _apiState = MutableLiveData<HomeUiState>()
     val apiState: LiveData<HomeUiState> = _apiState
 
@@ -32,9 +33,11 @@ class MainViewModel : ViewModel() {
     private val _selectedCity = MutableStateFlow<Location?>(null)
     val selectedCity: StateFlow<Location?> = _selectedCity
 
+    private var isDataLoaded = false
 
 
     fun loadCitiesList() {
+        if (isDataLoaded) return
         _isRefreshing.value = true
 
         viewModelScope.launch {
@@ -43,6 +46,7 @@ class MainViewModel : ViewModel() {
                 val response = citiesListRepository.getList()
                 _allCities.value = response
                 Log.d("test",response.toString())
+                isDataLoaded = true
             } catch (e: IOException) {
                 e.message?.let { Log.e("TEST IO", it) }
                 _apiState.value = HomeUiState.Error(ParserExceptions())
@@ -60,7 +64,7 @@ class MainViewModel : ViewModel() {
     }
 
 
-    fun addToFavorites(location: Location) {
+    /*fun addToFavorites(location: Location) {
         val currentList = allCities.value.toMutableList()
 
         currentList.find { it.id == location.id }?.apply {
@@ -68,5 +72,17 @@ class MainViewModel : ViewModel() {
         }
 
         _allCities.value = currentList
+    }*/
+
+    fun addToFavorites(location: Location) {
+        val updatedList = allCities.value.map {
+            if (it.id == location.id) {
+                it.copy(isFav = !it.isFav)
+            } else {
+                it
+            }
+        }
+        _allCities.value = updatedList
     }
+
 }

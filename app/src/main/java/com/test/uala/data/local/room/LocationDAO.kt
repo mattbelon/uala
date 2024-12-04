@@ -14,9 +14,11 @@ interface LocationDao {
     @Query("SELECT * FROM location_room WHERE name LIKE '%' || :query || '%'")
     fun searchLocations(query: String): Flow<List<LocationRoom>>
 
-    @Query("SELECT * FROM location_room")
+    @Query("SELECT * FROM location_room ORDER BY name LIMIT 5")
     fun getAllLocationsFlow(): Flow<List<LocationRoom>>
 
+    @Query("SELECT * FROM location_room ORDER BY name")
+    fun getAllLocationsSinFlow(): List<LocationRoom>
     @Query("SELECT * FROM location_room")
     fun getAllLocations(): List<LocationRoom>
 

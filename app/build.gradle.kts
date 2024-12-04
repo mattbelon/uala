@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.moshi)
     implementation(libs.retrofit.moshi)
+    implementation(libs.core.ktx)
     kapt(libs.moshi.kotlin.codegen)
     implementation(libs.moshi.kotlin)
     implementation(libs.google.maps.compose)

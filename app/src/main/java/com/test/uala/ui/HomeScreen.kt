@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,7 @@ fun HomeScreen() {
                     navController.navigate("map/${city.lat}/${city.lon}/${city.name}")
                 }
             )
+            //SimpleLazy(mainViewModel = mainViewModel)
         }
         composable(
             "map/{lat}/{lon}/{cityName}",
@@ -85,6 +87,70 @@ fun HomeScreen() {
         }
     }
 }
+/*@Composable
+fun SimpleLazy(
+    mainViewModel: MainViewModel,
+) {
+    Log.d("COMPOSE_DEBUG", "SimpleLazy recomposed")
+
+    val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
+    LaunchedEffect(mainViewModel.allCities) {
+        Log.d("COMPOSE_DEBUG", "LaunchedEffect triggered")
+
+        if (allCities.isEmpty()) {
+            //mainViewModel.loadCitiesSinFlow()
+            mainViewModel.loadCities()
+        }
+    }
+
+    LazyColumn {
+        items(allCities, key = { city -> city.id }) { city ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .clickable {
+                        Log.d("PROBANDING", "clickeadoSimple")
+                        //onCityClick(city)
+                    },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "${city.name}, ${city.country}",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${city.lat}, ${city.lon}",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        Log.d("PROBANDING", "fav clickeado")
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Favorite,
+                        contentDescription = "Add to Favorites",
+                        tint = if (city.isFav) {
+                            Color.Red
+                        } else {
+                            Color.Gray
+                        }
+                    )
+                }
+            }
+        }
+    }
+}*/
 
 @Composable
 fun CityListScreen(
@@ -93,26 +159,33 @@ fun CityListScreen(
 ) {
     val isRefreshing by mainViewModel.isRefreshing.collectAsState(initial = false)
     val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
+
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val selectedCity by mainViewModel.selectedCity.collectAsState(initial = null)
     var query by remember { mutableStateOf("") }
-    val filteredCities = remember(query, allCities) {
+    /*val filteredCities = remember(query, allCities) {
         allCities.filter { it.name.startsWith(query, ignoreCase = true) }.sortedBy { it.name }
-    }
-    Log.d("TESTING", "ciudades : " + allCities)
+    }*/
+    /*val filteredCities by remember(allCities, query) {
+        derivedStateOf {
+            allCities.filter { it.name.startsWith(query, ignoreCase = true) }
+                .sortedBy { it.name }
+        }
+    }*/
+
 
     val cantidadFavs = allCities.filter { it.isFav }
-    val cantidadFavsFiltrados = filteredCities.filter { it.isFav }
-    Log.d("TESTING", "cantidad de favoritos: " + cantidadFavs)
-    Log.d("TESTING", "cantidadFavsFiltrados: " + cantidadFavsFiltrados)
+    //val cantidadFavsFiltrados = filteredCities.filter { it.isFav }
+    //Log.d("TESTING", "cantidad de favoritos: " + cantidadFavs)
+    //Log.d("TESTING", "cantidadFavsFiltrados: " + cantidadFavsFiltrados)
 
     LaunchedEffect(Unit) {
         mainViewModel.loadCities()
+        //mainViewModel.loadCitiesList()
+        //mainViewModel.loadCitiesSinFlow()
     }
-
-    Log.d("CityListScreen", "isLandscape: $isLandscape")
 
     when (configuration.orientation) {
         Configuration.ORIENTATION_LANDSCAPE -> {
@@ -121,7 +194,7 @@ fun CityListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 CityListColumn(
-                    filteredCities = filteredCities,
+                    filteredCities = allCities,
                     query = query,
                     onQueryChange = { query = it },
                     onCityClick = { mainViewModel.selectedLocation(it) },
@@ -149,7 +222,7 @@ fun CityListScreen(
         Configuration.ORIENTATION_PORTRAIT -> {
             Column(modifier = Modifier.fillMaxSize()) {
                 CityListColumn(
-                    filteredCities = filteredCities,
+                    filteredCities = allCities,
                     query = query,
                     onQueryChange = { query = it },
                     onCityClick = { city -> onCitySelected(city) },
@@ -254,12 +327,14 @@ fun CityListColumn(
         )
 
         LazyColumn {
-            items(filteredCities) { city ->
+            items(filteredCities, key = { city -> city.id }) { city ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp)
-                        .clickable { onCityClick(city) },
+                        .clickable {
+                            onCityClick(city)
+                        },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {

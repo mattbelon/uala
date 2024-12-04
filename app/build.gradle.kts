@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id("com.google.dagger.hilt.android")
     id ("kotlin-kapt")
 }
 
@@ -70,8 +71,11 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
     annotationProcessor(libs.room.compiler)
+    kapt ("androidx.room:room-compiler:2.6.1")
+    implementation ("androidx.room:room-ktx:2.6.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

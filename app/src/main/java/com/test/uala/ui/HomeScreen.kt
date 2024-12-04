@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -43,6 +42,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -53,11 +53,12 @@ import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.test.uala.MainViewModel
-import com.test.uala.data.models.Coord
-import com.test.uala.data.models.Location
+import com.test.uala.ui.locationModel.LocationModel
 
 @Composable
-fun HomeScreen(mainViewModel: MainViewModel) {
+fun HomeScreen() {
+    val mainViewModel: MainViewModel = hiltViewModel()
+
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = "city_list") {
@@ -65,7 +66,7 @@ fun HomeScreen(mainViewModel: MainViewModel) {
             CityListScreen(
                 mainViewModel = mainViewModel,
                 onCitySelected = { city ->
-                    navController.navigate("map/${city.coord.lat}/${city.coord.lon}/${city.name}")
+                    navController.navigate("map/${city.lat}/${city.lon}/${city.name}")
                 }
             )
         }
@@ -88,7 +89,7 @@ fun HomeScreen(mainViewModel: MainViewModel) {
 @Composable
 fun CityListScreen(
     mainViewModel: MainViewModel,
-    onCitySelected: (Location) -> Unit
+    onCitySelected: (LocationModel) -> Unit
 ) {
     val isRefreshing by mainViewModel.isRefreshing.collectAsState(initial = false)
     val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
@@ -100,21 +101,23 @@ fun CityListScreen(
     val filteredCities = remember(query, allCities) {
         allCities.filter { it.name.startsWith(query, ignoreCase = true) }.sortedBy { it.name }
     }
+    Log.d("TESTING", "ciudades : " + allCities)
 
     val cantidadFavs = allCities.filter { it.isFav }
     val cantidadFavsFiltrados = filteredCities.filter { it.isFav }
-    Log.d("TESTING", "cantidad de favoritos: "+cantidadFavs)
-    Log.d("TESTING", "cantidadFavsFiltrados: "+cantidadFavsFiltrados)
+    Log.d("TESTING", "cantidad de favoritos: " + cantidadFavs)
+    Log.d("TESTING", "cantidadFavsFiltrados: " + cantidadFavsFiltrados)
 
     LaunchedEffect(Unit) {
-        mainViewModel.loadCitiesList()
+        mainViewModel.loadCities()
     }
 
     Log.d("CityListScreen", "isLandscape: $isLandscape")
 
     when (configuration.orientation) {
         Configuration.ORIENTATION_LANDSCAPE -> {
-            Row(modifier = Modifier.fillMaxSize(),
+            Row(
+                modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 CityListColumn(
@@ -125,16 +128,16 @@ fun CityListScreen(
                     onFavoriteClick = { city -> mainViewModel.addToFavorites(city) },
                     modifier = Modifier.weight(1f)
                 )
-               /*
-               Con este código puedo mostrar el mapa en landscape unicamente si hay una ciudad seleccionada
-               selectedCity?.let { city ->
-                    MapScreen(
-                        lat = city.coord.lat.toFloat(),
-                        lon = city.coord.lon.toFloat(),
-                        cityName = city.name,
-                        modifier = Modifier.fillMaxWidth().weight(1f)
-                    )
-                }*/
+                /*
+                Con este código puedo mostrar el mapa en landscape unicamente si hay una ciudad seleccionada
+                selectedCity?.let { city ->
+                     MapScreen(
+                         lat = city.coord.lat.toFloat(),
+                         lon = city.coord.lon.toFloat(),
+                         cityName = city.name,
+                         modifier = Modifier.fillMaxWidth().weight(1f)
+                     )
+                 }*/
                 MapBox(
                     selectedCity = selectedCity,
                     modifier = Modifier.weight(1f)
@@ -142,6 +145,7 @@ fun CityListScreen(
             }
 
         }
+
         Configuration.ORIENTATION_PORTRAIT -> {
             Column(modifier = Modifier.fillMaxSize()) {
                 CityListColumn(
@@ -176,6 +180,7 @@ fun CityListScreen(
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(lat: Float, lon: Float, cityName: String, modifier: Modifier) {
@@ -215,7 +220,7 @@ fun MapScreen(lat: Float, lon: Float, cityName: String, modifier: Modifier) {
 }
 
 @Composable
-fun MapBox(selectedCity: Location?, modifier: Modifier) {
+fun MapBox(selectedCity: LocationModel?, modifier: Modifier) {
     Box(
         modifier = modifier
             .fillMaxHeight()
@@ -227,12 +232,12 @@ fun MapBox(selectedCity: Location?, modifier: Modifier) {
 
 @Composable
 fun CityListColumn(
-    filteredCities: List<Location>,
+    filteredCities: List<LocationModel>,
     query: String,
     onQueryChange: (String) -> Unit,
-    onCityClick: (Location) -> Unit,
-    onFavoriteClick: (Location) -> Unit,
-    modifier:Modifier
+    onCityClick: (LocationModel) -> Unit,
+    onFavoriteClick: (LocationModel) -> Unit,
+    modifier: Modifier
 ) {
     Column(
         modifier = modifier
@@ -242,8 +247,8 @@ fun CityListColumn(
         TextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier.
-                fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
                 .padding(bottom = 8.dp),
             placeholder = { Text("Buscar ciudades") }
         )
@@ -268,7 +273,7 @@ fun CityListColumn(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${city.coord.lat}, ${city.coord.lon}",
+                            text = "${city.lat}, ${city.lon}",
                             modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -294,7 +299,7 @@ fun CityListColumn(
 }
 
 @Composable
-fun GoogleMapView(selectedCity: Location?) {
+fun GoogleMapView(selectedCity: LocationModel?) {
     val context = LocalContext.current
     val mapView = remember { MapView(context).apply { onCreate(null) } }
     AndroidView(
@@ -304,20 +309,16 @@ fun GoogleMapView(selectedCity: Location?) {
             mapView.getMapAsync { googleMap ->
                 googleMap.uiSettings.isZoomControlsEnabled = true
                 selectedCity?.let { city ->
-                    val latLng = getLatLngForCity(city.coord)
+                    val latLng = LatLng(city.lat, city.lon)
                     googleMap.addMarker(
                         MarkerOptions().position(latLng).title("Marker in ${city.name}")
-                            .snippet("Coords -> Lat:${city.coord.lat} ${city.coord.lon}")
+                            .snippet("Coords -> Lat:${city.lat} ${city.lon}")
                     )
                     googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10f))
                 }
             }
         }
     )
-}
-
-fun getLatLngForCity(city: Coord): LatLng {
-    return LatLng(city.lat, city.lon)
 }
 /*
 @Composable

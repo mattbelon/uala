@@ -19,19 +19,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -87,70 +91,7 @@ fun HomeScreen() {
         }
     }
 }
-/*@Composable
-fun SimpleLazy(
-    mainViewModel: MainViewModel,
-) {
-    Log.d("COMPOSE_DEBUG", "SimpleLazy recomposed")
 
-    val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
-    LaunchedEffect(mainViewModel.allCities) {
-        Log.d("COMPOSE_DEBUG", "LaunchedEffect triggered")
-
-        if (allCities.isEmpty()) {
-            //mainViewModel.loadCitiesSinFlow()
-            mainViewModel.loadCities()
-        }
-    }
-
-    LazyColumn {
-        items(allCities, key = { city -> city.id }) { city ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .clickable {
-                        Log.d("PROBANDING", "clickeadoSimple")
-                        //onCityClick(city)
-                    },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "${city.name}, ${city.country}",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${city.lat}, ${city.lon}",
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        Log.d("PROBANDING", "fav clickeado")
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Favorite,
-                        contentDescription = "Add to Favorites",
-                        tint = if (city.isFav) {
-                            Color.Red
-                        } else {
-                            Color.Gray
-                        }
-                    )
-                }
-            }
-        }
-    }
-}*/
 
 @Composable
 fun CityListScreen(
@@ -158,33 +99,17 @@ fun CityListScreen(
     onCitySelected: (LocationModel) -> Unit
 ) {
     val isRefreshing by mainViewModel.isRefreshing.collectAsState(initial = false)
-    val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
+    val filteredCities by mainViewModel.filteredCities.collectAsStateWithLifecycle(initialValue = emptyList())
 
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val selectedCity by mainViewModel.selectedCity.collectAsState(initial = null)
+    val infoCity by mainViewModel.infoCity.collectAsState(initial = null)
     var query by remember { mutableStateOf("") }
-    /*val filteredCities = remember(query, allCities) {
-        allCities.filter { it.name.startsWith(query, ignoreCase = true) }.sortedBy { it.name }
-    }*/
-    /*val filteredCities by remember(allCities, query) {
-        derivedStateOf {
-            allCities.filter { it.name.startsWith(query, ignoreCase = true) }
-                .sortedBy { it.name }
-        }
-    }*/
-
-
-    val cantidadFavs = allCities.filter { it.isFav }
-    //val cantidadFavsFiltrados = filteredCities.filter { it.isFav }
-    //Log.d("TESTING", "cantidad de favoritos: " + cantidadFavs)
-    //Log.d("TESTING", "cantidadFavsFiltrados: " + cantidadFavsFiltrados)
+    var showDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         mainViewModel.loadCities()
-        //mainViewModel.loadCitiesList()
-        //mainViewModel.loadCitiesSinFlow()
     }
 
     when (configuration.orientation) {
@@ -194,12 +119,20 @@ fun CityListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 CityListColumn(
-                    filteredCities = allCities,
+                    filteredCities = filteredCities,
                     query = query,
-                    onQueryChange = { query = it },
+                    onQueryChange = {
+                        query = it
+                        mainViewModel.updateSearchQuery(it)
+                    },
                     onCityClick = { mainViewModel.selectedLocation(it) },
+                    onInfoClick = {
+                        showDialog = true
+                        mainViewModel.infoLocation(it)
+                    },
                     onFavoriteClick = { city -> mainViewModel.addToFavorites(city) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onLoadMore = {mainViewModel.loadMoreLocations()}
                 )
                 /*
                 Con este código puedo mostrar el mapa en landscape unicamente si hay una ciudad seleccionada
@@ -215,6 +148,11 @@ fun CityListScreen(
                     selectedCity = selectedCity,
                     modifier = Modifier.weight(1f)
                 )
+                if (showDialog && infoCity != null) {
+                    ShowCityInfoDialog(infoCity = infoCity!!) {
+                        showDialog = false
+                    }
+                }
             }
 
         }
@@ -222,13 +160,26 @@ fun CityListScreen(
         Configuration.ORIENTATION_PORTRAIT -> {
             Column(modifier = Modifier.fillMaxSize()) {
                 CityListColumn(
-                    filteredCities = allCities,
+                    filteredCities = filteredCities,
                     query = query,
-                    onQueryChange = { query = it },
+                    onQueryChange = {
+                        query = it
+                        mainViewModel.updateSearchQuery(it)
+                    },
                     onCityClick = { city -> onCitySelected(city) },
+                    onInfoClick = { city ->
+                        showDialog = true
+                        mainViewModel.infoLocation(city)
+                    },
                     onFavoriteClick = { city -> mainViewModel.addToFavorites(city) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    onLoadMore = {mainViewModel.loadMoreLocations()}
                 )
+                if (showDialog && infoCity != null) {
+                    ShowCityInfoDialog(infoCity = infoCity!!) {
+                        showDialog = false
+                    }
+                }
             }
         }
 
@@ -251,6 +202,29 @@ fun CityListScreen(
         ) {
             CircularProgressIndicator()
         }
+    }
+}
+
+@Composable
+fun ShowCityInfoDialog(infoCity: LocationModel?, onDismiss: () -> Unit) {
+    infoCity?.let { info ->
+        AlertDialog(
+            onDismissRequest = { onDismiss() },
+            title = {
+                Text(text = "City Information")
+            },
+            text = {
+                Column {
+                    Text(text = "Title: ${info.name}")
+                    Text(text = "Coordinates: Lat ${info.lat}, Lng ${info.lon}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onDismiss() }) {
+                    Text(text = "OK")
+                }
+            }
+        )
     }
 }
 
@@ -309,7 +283,9 @@ fun CityListColumn(
     query: String,
     onQueryChange: (String) -> Unit,
     onCityClick: (LocationModel) -> Unit,
+    onInfoClick: (LocationModel) -> Unit,
     onFavoriteClick: (LocationModel) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier
 ) {
     Column(
@@ -320,6 +296,16 @@ fun CityListColumn(
         TextField(
             value = query,
             onValueChange = onQueryChange,
+            trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear text"
+                    )
+                }
+            }
+        },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
@@ -328,6 +314,7 @@ fun CityListColumn(
 
         LazyColumn {
             items(filteredCities, key = { city -> city.id }) { city ->
+                Log.d("location:Compose", "Composing city: ${city.name}, isFav: ${city.isFav}")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -353,7 +340,14 @@ fun CityListColumn(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-
+                    IconButton(
+                        onClick = { onInfoClick(city) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "More information",
+                        )
+                    }
                     IconButton(
                         onClick = { onFavoriteClick(city) }
                     ) {
@@ -366,6 +360,13 @@ fun CityListColumn(
                                 Color.Gray
                             }
                         )
+                    }
+                }
+            }
+            item {
+                LaunchedEffect(filteredCities.size) {
+                    if (filteredCities.isNotEmpty()) {
+                        onLoadMore()
                     }
                 }
             }
@@ -395,190 +396,3 @@ fun GoogleMapView(selectedCity: LocationModel?) {
         }
     )
 }
-/*
-@Composable
-fun CityListColumn(
-    filteredCities: List<City>,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onCityClick: (City) -> Unit,
-    onFavoriteClick: (City) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .weight(0.4f)
-            .fillMaxHeight()
-            .padding(8.dp)
-    ) {
-        TextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            placeholder = { Text("Buscar ciudades") }
-        )
-
-        LazyColumn {
-            items(filteredCities) { city ->
-                val isFav = remember { mutableStateOf(city.isFav) }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .clickable { onCityClick(city) },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "${city.name}, ${city.country}",
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "${city.coord.lat}, ${city.coord.lon}",
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onFavoriteClick(city) }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Favorite,
-                            contentDescription = "Add to Favorites",
-                            tint = if (isFav.value) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-@Composable
-fun HomeScreen(mainViewModel: MainViewModel) {
-    val allCities by mainViewModel.allCities.collectAsState(initial = emptyList())
-
-    val selectedCity by mainViewModel.selectedCity.collectAsState(initial = null)
-    val context = LocalContext.current
-    var query by remember { mutableStateOf("") }
-    val filteredCities = remember(query, allCities) {
-        allCities.filter { it.name.startsWith(query, ignoreCase = true)}.sortedBy { it.name }
-    }
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-    LaunchedEffect(Unit) {
-        mainViewModel.loadCitiesList()
-    }
-    Row(modifier = Modifier.fillMaxSize()) {
-
-        Column(
-            modifier = Modifier
-                .weight(0.4f)
-                .fillMaxHeight()
-                .padding(8.dp)
-        ) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                placeholder = { Text("Buscar ciudades") }
-            )
-
-            LazyColumn {
-                items(filteredCities) { city ->
-                    val isFav = remember { mutableStateOf(city.isFav) }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp)
-                            .clickable { mainViewModel.selectedLocation(city) },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "${city.name}, ${city.country}",
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${city.coord.lat}, ${city.coord.lon}",
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                mainViewModel.addToFavorites(city)
-                                Toast.makeText(context, "CLICKEADO", Toast.LENGTH_LONG).show()
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Favorite,
-                                contentDescription = "Add to Favorites",
-                                tint = if (isFav.value) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(0.6f)
-                .fillMaxHeight()
-                .padding(8.dp)
-        ) {
-            GoogleMapView(selectedCity)
-        }
-    }
-}
-
-@Composable
-fun GoogleMapView(selectedCity: Location?) {
-    val context = LocalContext.current
-    val mapView = remember { MapView(context).apply { onCreate(null) } }
-
-    AndroidView(
-        factory = { mapView },
-        modifier = Modifier.fillMaxSize(),
-        update = { mapView ->
-            mapView.getMapAsync { googleMap ->
-                googleMap.uiSettings.isZoomControlsEnabled = true
-                selectedCity?.let { city ->
-                    val latLng = getLatLngForCity(city.coord)
-                    googleMap.addMarker(MarkerOptions().position(latLng).title("Marker in ${city.name}").snippet("Coords -> Lat:${city.coord.lat} ${city.coord.lon}"))
-                    googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10f))
-                }
-            }
-        }
-    )
-}
-
-fun getLatLngForCity(city:Coord):LatLng{
-    return LatLng(city.lat, city.lon)
-}*/

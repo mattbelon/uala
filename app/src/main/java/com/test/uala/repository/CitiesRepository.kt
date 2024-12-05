@@ -27,53 +27,15 @@ class CitiesRepository @Inject constructor(private val locationDao: LocationDao)
         return@withContext safeApiCall { apiService.getMapList() }
     }
 
-    fun searchLocations(query: String): Flow<List<LocationRoom>> {
-        return locationDao.searchLocations(query)
-    }
-
-    fun getAllLocationsFlow(): Flow<List<LocationRoom>> {
-        return locationDao.getAllLocationsFlow()
-    }
-    suspend fun LoadLocations() {
-        val locationList = locationDao.getAllLocations()
-        if(locationList.isEmpty()){
-            val remoteList = getList()
-            locationDao.insertLocation(remoteList.map { locationMapper.ParseToRoom(it) })
-        }
-    }
-
-    suspend fun LoadLocationsSinFlow():List<LocationModel> {
-        val locationList = locationDao.getAllLocationsSinFlow()
-        return locationList.map { mapToLocationModel(it) }
-    }
-
-    suspend fun loadAndFetchLocations(): List<LocationModel> {
-        // Intentamos cargar las ubicaciones desde Room
-        val localList = locationDao.getAllLocationsSinFlow()
-        Log.d("TESTING","local list"+ localList.size.toString())
-        return if (localList.isEmpty()) {
-            // Si no hay datos locales, los obtenemos de la API
+    suspend fun loadAndFetchLocations() {
+        val localList = locationDao.checkData()
+        if (localList.isEmpty()) {
             val remoteList = getList()
             Log.d("TESTING", "remote list :"+remoteList.size.toString())
-            // Transformamos los datos remotos al modelo de Room
             val roomEntities = remoteList.map { locationMapper.ParseToRoom(it) }
 
-            // Guardamos los datos en Room
             locationDao.insertLocation(roomEntities)
-
-            // Transformamos las entidades guardadas al modelo esperado por la UI
-            roomEntities.map { mapToLocationModel(it) }
-        } else {
-            // Si ya hay datos locales, simplemente los transformamos y los devolvemos
-            localList.map { mapToLocationModel(it) }
         }
-    }
-
-
-
-
-    fun getLocationById(id: Int): Flow<LocationRoom?> {
-        return locationDao.getLocationById(id)
     }
 
     private fun mapToLocationModel(locationRoom: LocationRoom): LocationModel {
@@ -87,17 +49,21 @@ class CitiesRepository @Inject constructor(private val locationDao: LocationDao)
         )
     }
 
-    fun getAllLocations(): Flow<List<LocationModel>> {
-        return locationDao.getAllLocationsFlow().map { locationRooms ->
-            locationRooms.map { mapToLocationModel(it) }
-        }
-    }
-
     fun getFavoriteLocations(): Flow<List<LocationModel>> {
-        return locationDao.getFavoriteLocations().map { locationRooms ->
+        return locationDao.getFavoriteLocationsFlow().map { locationRooms ->
             locationRooms.map { mapToLocationModel(it) }
         }
     }
 
+    suspend fun updateFavoriteStatus(id: Int, isFavorite: Boolean) {
+        locationDao.updateFavoriteStatus(id, isFavorite)
+    }
+
+    fun getLocationsPaginated(limit: Int, offset: Int): List<LocationModel>{
+        return locationDao.getLocationsPaginated(limit, offset).map { mapToLocationModel(it) }
+    }
+    fun searchLocations(query: String): List<LocationModel>{
+        return locationDao.searchLocations(query).map { mapToLocationModel(it) }
+    }
 
 }

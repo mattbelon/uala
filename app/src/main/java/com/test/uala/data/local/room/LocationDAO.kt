@@ -27,7 +27,7 @@ interface LocationDao {
     fun getFavoriteLocationsFlow(): Flow<List<LocationRoom>>
 
     @Query("SELECT * FROM location_room WHERE id = :id")
-    fun getLocationById(id: Int): Flow<LocationRoom?>
+    fun getLocationById(id: Int): LocationRoom?
 
     @Query("UPDATE location_room SET isFav = :isFavorite WHERE id = :id")
     suspend fun updateFavoriteStatus(id: Int, isFavorite: Boolean)

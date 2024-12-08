@@ -1,21 +1,20 @@
 package com.test.uala
 
 import android.util.Log
-import androidx.lifecycle.MutableLiveData
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.uala.repository.CitiesRepository
+import com.test.uala.ui.HomeEvent
 import com.test.uala.ui.HomeUiState
-import com.test.uala.ui.cities.ParserExceptions
-import com.test.uala.ui.cities.ServerExceptions
 import com.test.uala.ui.locationModel.LocationModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -26,27 +25,17 @@ class MainViewModel @Inject constructor(
     private val citiesRepository: CitiesRepository
 ) :
     ViewModel() {
+    var state by mutableStateOf(HomeUiState())
+        private set
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
-    private val _apiState = MutableLiveData<HomeUiState>()
-
-    private val _originalCities = MutableStateFlow<List<LocationModel>>(emptyList())
     private val _favoriteLocations = MutableStateFlow<List<LocationModel>>(emptyList())
-    private val _filteredCities = MutableStateFlow<List<LocationModel>>(emptyList())
-    val filteredCities: StateFlow<List<LocationModel>> = _filteredCities
-    private val _searchQuery = MutableStateFlow("")
-
-    private val _selectedCity = MutableStateFlow<LocationModel?>(null)
-    val selectedCity: StateFlow<LocationModel?> = _selectedCity
-
-    private val _infoCity = MutableStateFlow<LocationModel?>(null)
-    val infoCity: StateFlow<LocationModel?> = _infoCity
+    private val _originalCities = MutableStateFlow<List<LocationModel>>(emptyList())
 
     private var isDataLoaded = false
     private var currentOffset = 0
     private val limit = 20
     private var isSearch = false
+
     init {
         viewModelScope.launch {
             citiesRepository.getFavoriteLocations()
@@ -58,22 +47,51 @@ class MainViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _searchQuery
-                .debounce(500)
+            snapshotFlow { state.query }
                 .collectLatest { query ->
                     applyFilter(query)
                 }
         }
+
     }
-    fun applyFilter(query: String) {
+
+    fun onEvent(event: HomeEvent) {
+        when (event) {
+            is HomeEvent.AddFav -> {
+                addToFavorites(event.location)
+            }
+
+            is HomeEvent.InfoLocation -> {
+                state = state.copy(infoCity = event.selected)
+            }
+
+            HomeEvent.LoadCities -> {
+                loadCities()
+            }
+
+            HomeEvent.LoadMore -> {
+                loadMoreLocations()
+            }
+
+            is HomeEvent.SelectedCity -> {
+                state = state.copy(selectedCity = event.selected)
+            }
+
+            is HomeEvent.UpdateSearchQuery -> {
+                updateSearchQuery(event.query)
+            }
+        }
+    }
+
+    private fun applyFilter(query: String) {
         viewModelScope.launch {
             if (query.isBlank()) {
                 isSearch = false
-                _filteredCities.value = _originalCities.value
+                state = state.copy(filteredCities = _originalCities.value)
             } else {
                 isSearch = true
-                _filteredCities.value =
-                    withContext(Dispatchers.IO) { citiesRepository.searchLocations(query) }
+                val result = withContext(Dispatchers.IO) { citiesRepository.searchLocations(query) }
+                state = state.copy(filteredCities = result)
             }
         }
     }
@@ -81,19 +99,19 @@ class MainViewModel @Inject constructor(
     private fun updateFavoriteStatus() {
         val favoriteIds = _favoriteLocations.value.map { it.id }.toSet()
 
-        val updatedCities = _filteredCities.value.map { city ->
+        val updatedCities = state.filteredCities.map { city ->
             city.copy(isFav = favoriteIds.contains(city.id))
         }
 
-        _filteredCities.value = updatedCities
-
+        state = state.copy(filteredCities = updatedCities)
     }
 
-    fun loadCities() {
-        if (isDataLoaded) return
-        _isRefreshing.value = true
-        viewModelScope.launch(Dispatchers.IO) {
 
+    private fun loadCities() {
+        if (isDataLoaded) return
+        state = state.copy(isLoading = true)
+
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 withContext(Dispatchers.IO) {
                     citiesRepository.loadAndFetchLocations()
@@ -102,38 +120,38 @@ class MainViewModel @Inject constructor(
                 updateFavoriteStatus()
                 isDataLoaded = true
             } catch (e: IOException) {
-                _apiState.value = HomeUiState.Error(ParserExceptions())
+                state = state.copy(exception = e.localizedMessage)
             } catch (e: Exception) {
-                _apiState.value = HomeUiState.Error(ServerExceptions())
+                state = state.copy(exception = e.localizedMessage)
             } finally {
-                _isRefreshing.value = false
+                state = state.copy(isLoading = false)
             }
         }
     }
-    fun loadMoreLocations() {
+
+    private fun loadMoreLocations() {
         if (isSearch) {
             return
         }
         viewModelScope.launch {
-            val newLocations = withContext(Dispatchers.IO){citiesRepository.getLocationsPaginated(limit, currentOffset)}
+            val newLocations = withContext(Dispatchers.IO) {
+                citiesRepository.getLocationsPaginated(
+                    limit,
+                    currentOffset
+                )
+            }
             if (newLocations.isNotEmpty()) {
                 _originalCities.value += newLocations
-                _filteredCities.value += newLocations
+                state = state.copy(
+                    filteredCities = state.filteredCities + newLocations
+                )
                 currentOffset += newLocations.size
             }
-                }
+        }
 
     }
 
-    fun selectedLocation(selected: LocationModel) {
-        _selectedCity.value = selected
-    }
-
-    fun infoLocation(selected: LocationModel?) {
-        _infoCity.value = selected
-    }
-
-    fun addToFavorites(location: LocationModel) {
+    private fun addToFavorites(location: LocationModel) {
         updateFavoriteStatus(location.id, !location.isFav)
     }
 
@@ -143,8 +161,9 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
+    private fun updateSearchQuery(query: String) {
+        state = state.copy(query = query)
+        applyFilter(query)
     }
 
 }

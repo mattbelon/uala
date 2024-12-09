@@ -7,6 +7,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import com.test.uala.ui.locationModel.LocationModel
 
+
 @Composable
 fun ShowCityInfoDialog(infoCity: LocationModel?, onDismiss: () -> Unit) {
     infoCity?.let { info ->

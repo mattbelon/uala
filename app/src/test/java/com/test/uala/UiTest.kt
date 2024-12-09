@@ -11,10 +11,10 @@ import androidx.compose.ui.test.printToLog
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
-import com.test.uala.ui.CityListColumn
 import com.test.uala.ui.HomeScreen
 import com.test.uala.ui.HomeUiState
-import com.test.uala.ui.ShowCityInfoDialog
+import com.test.uala.ui.components.CityInfoScreen
+import com.test.uala.ui.components.CityListColumn
 import com.test.uala.ui.locationModel.LocationModel
 import org.junit.Rule
 import org.junit.Test
@@ -121,7 +121,7 @@ class ShowCityInfoDialogTest {
         val city = LocationModel(1, "Us", "Miami", 12.34, 56.78, false)
 
         composeTestRule.setContent {
-            ShowCityInfoDialog(infoCity = city) {}
+            CityInfoScreen(infoCity = city) {}
         }
 
         composeTestRule.onNodeWithText("City Information").assertExists()

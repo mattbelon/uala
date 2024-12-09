@@ -27,7 +27,7 @@ import com.test.uala.ui.locationModel.LocationModel
 
 
 @Composable
-fun CityListScreen(
+fun CityList(
     homeEvent: (HomeEvent) -> Unit,
     homeState: HomeUiState,
     onCitySelected: (LocationModel) -> Unit
